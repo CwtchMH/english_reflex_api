@@ -2,10 +2,16 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class TopicResponseDto {
   @ApiProperty({
-    example: 1,
+    example: '123e4567-e89b-12d3-a456-426614174000',
     description: 'Unique topic identifier.',
   })
-  id!: number;
+  id!: string;
+
+  @ApiProperty({
+    example: 'basic-greetings',
+    description: 'Unique topic slug.',
+  })
+  slug!: string;
 
   @ApiProperty({
     example: 'Basic Greetings',

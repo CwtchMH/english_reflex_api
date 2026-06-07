@@ -1,97 +1,112 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CreateTopicsDto } from './dto/create-topics.dto';
-import { GetTopicDto } from './dto/get-topic.dto';
-import { GetTopicsDto } from './dto/get-topics.dto';
-import { TopicResponseDto } from './dto/topic-response.dto';
-import { UpdateTopicsDto } from './dto/update-topics.dto';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { CreateTopicDto } from './dto/create-topics.dto.js';
+import { GetTopicDto } from './dto/get-topic.dto.js';
+import { GetTopicsDto } from './dto/get-topics.dto.js';
+import { TopicResponseDto } from './dto/topic-response.dto.js';
+import { UpdateTopicsDto } from './dto/update-topics.dto.js';
 
 @Injectable()
 export class TopicsService {
-  private nextTopicId = 4;
+  constructor(private readonly prisma: PrismaService) {}
 
-  private topics: TopicResponseDto[] = [
-    {
-      id: 1,
-      title: 'Basic Greetings',
-      description: 'Practice common greetings and introductions.',
-    },
-    {
-      id: 2,
-      title: 'Daily Conversations',
-      description: 'Build reflexes for everyday English conversations.',
-    },
-    {
-      id: 3,
-      title: 'Travel English',
-      description: 'Practice useful phrases for trips, hotels, and airports.',
-    },
-  ];
-
-  getTopics(): GetTopicsDto {
-    return {
-      topics: this.topics,
-    };
-  }
-
-  getTopic(id: number): GetTopicDto {
-    return {
-      topic: this.findTopicByIdOrThrow(id),
-    };
-  }
-
-  createTopic(dto: CreateTopicsDto): GetTopicDto {
-    const topic: TopicResponseDto = {
-      id: this.nextTopicId++,
-      title: dto.title,
-      description: dto.description,
-    };
-
-    this.topics.push(topic);
+  async getTopics(): Promise<GetTopicsDto> {
+    const topics = await this.prisma.topic.findMany({
+      orderBy: { createdAt: 'asc' },
+    });
 
     return {
-      topic,
+      topics: topics.map((topic) => this.toTopicResponse(topic)),
     };
   }
 
-  updateTopic(id: number, dto: UpdateTopicsDto): GetTopicDto {
-    const topicIndex = this.findTopicIndexByIdOrThrow(id);
-    const currentTopic = this.topics[topicIndex];
+  async getTopic(id: string): Promise<GetTopicDto> {
+    const topic = await this.findTopicByIdOrThrow(id);
 
-    const updatedTopic: TopicResponseDto = {
-      ...currentTopic,
-      ...dto,
-    };
-
-    this.topics[topicIndex] = updatedTopic;
-
-    return {
-      topic: updatedTopic,
-    };
+    return { topic };
   }
 
-  deleteTopic(id: number): void {
-    const topicIndex = this.findTopicIndexByIdOrThrow(id);
+  async getTopicBySlug(slug: string): Promise<GetTopicDto> {
+    const topic = await this.findTopicBySlugOrThrow(slug);
 
-    this.topics.splice(topicIndex, 1);
+    return { topic };
   }
 
-  private findTopicByIdOrThrow(id: number): TopicResponseDto {
-    const topic = this.topics.find((item) => item.id === id);
+  async createTopic(dto: CreateTopicDto): Promise<GetTopicDto> {
+    const topic = await this.prisma.topic.create({
+      data: {
+        slug: this.generateSlug(dto.title),
+        title: dto.title,
+        description: dto.description,
+      },
+    });
+
+    return { topic: this.toTopicResponse(topic) };
+  }
+
+  async updateTopic(id: string, dto: UpdateTopicsDto): Promise<GetTopicDto> {
+    await this.findTopicByIdOrThrow(id);
+
+    const topic = await this.prisma.topic.update({
+      where: { id },
+      data: {
+        ...dto,
+        ...(dto.title ? { slug: this.generateSlug(dto.title) } : {}),
+      },
+    });
+
+    return { topic: this.toTopicResponse(topic) };
+  }
+
+  async deleteTopic(id: string): Promise<void> {
+    await this.findTopicByIdOrThrow(id);
+
+    await this.prisma.topic.delete({
+      where: { id },
+    });
+  }
+
+  private async findTopicByIdOrThrow(id: string): Promise<TopicResponseDto> {
+    const topic = await this.prisma.topic.findUnique({
+      where: { id },
+    });
 
     if (!topic) {
       throw new NotFoundException(`Topic with id "${id}" was not found.`);
     }
 
-    return topic;
+    return this.toTopicResponse(topic);
   }
 
-  private findTopicIndexByIdOrThrow(id: number): number {
-    const topicIndex = this.topics.findIndex((item) => item.id === id);
+  private async findTopicBySlugOrThrow(
+    slug: string,
+  ): Promise<TopicResponseDto> {
+    const topic = await this.prisma.topic.findUnique({
+      where: { slug },
+    });
 
-    if (topicIndex === -1) {
-      throw new NotFoundException(`Topic with id "${id}" was not found.`);
+    if (!topic) {
+      throw new NotFoundException(`Topic with slug "${slug}" was not found.`);
     }
 
-    return topicIndex;
+    return this.toTopicResponse(topic);
+  }
+
+  private toTopicResponse(
+    topic: Pick<TopicResponseDto, 'id' | 'slug' | 'title' | 'description'>,
+  ): TopicResponseDto {
+    return {
+      id: topic.id,
+      slug: topic.slug,
+      title: topic.title,
+      description: topic.description,
+    };
+  }
+
+  private generateSlug(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/ /g, '-')
+      .replace(/[^\w-]+/g, '');
   }
 }

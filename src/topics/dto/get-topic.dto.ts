@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { TopicResponseDto } from './topic-response.dto';
+import { TopicResponseDto } from './topic-response.dto.js';
 
 export class GetTopicDto {
   @ApiProperty({

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 
-export class CreateTopicsDto {
+export class CreateTopicDto {
   @ApiProperty({
     example: 'Basic Greetings',
     description: 'Human-readable topic title.',
@@ -25,4 +25,12 @@ export class CreateTopicsDto {
   @MinLength(10)
   @MaxLength(500)
   description!: string;
+}
+
+export class CreateTopicResponseDto extends CreateTopicDto {
+  @ApiProperty({
+    example: 'basic-greetings',
+    description: 'Unique topic slug.',
+  })
+  slug!: string;
 }
