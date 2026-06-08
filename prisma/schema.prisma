@@ -15,3 +15,214 @@ model Topic {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  displayName  String?
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens    RefreshToken[]
+  lessonProgress   UserLessonProgress[]
+  miniStoryAnswers UserMiniStoryAnswer[]
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum LessonStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LessonLevel {
+  BEGINNER
+  ELEMENTARY
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum LessonActivityType {
+  TRANSCRIPT
+  VOCABULARY
+  MINI_STORY
+  SHADOWING
+}
+
+enum LessonProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MiniStoryAnswerStatus {
+  RECORDED
+  TRANSCRIBED
+  REVIEWED
+}
+
+model Lesson {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  title       String
+  level       LessonLevel
+  durationSec Int
+  status      LessonStatus @default(DRAFT)
+  version     Int          @default(1)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transcriptSegments TranscriptSegment[]
+  vocabularySection  VocabularySection?
+  miniStoryPractice  MiniStoryPractice?
+  shadowingItems     ShadowingItem[]
+  userProgress       UserLessonProgress[]
+  miniStoryAnswers   UserMiniStoryAnswer[]
+
+  @@index([status])
+  @@index([level])
+}
+
+model TranscriptSegment {
+  id          String  @id @default(cuid())
+  lessonId    String
+  orderIndex  Int
+  text        String
+  translation String
+  startMs     Int?
+  endMs       Int?
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, orderIndex])
+  @@index([lessonId])
+}
+
+model VocabularySection {
+  id       String @id @default(cuid())
+  lessonId String @unique
+  audioUrl String
+
+  lesson Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  items  VocabularyItem[]
+}
+
+model VocabularyItem {
+  id                  String @id @default(cuid())
+  vocabularySectionId String
+  orderIndex          Int
+  phrase              String
+  meaning             String
+  explanation         String
+  example             String
+  exampleTranslation  String
+
+  section VocabularySection @relation(fields: [vocabularySectionId], references: [id], onDelete: Cascade)
+
+  @@unique([vocabularySectionId, orderIndex])
+  @@index([vocabularySectionId])
+}
+
+model MiniStoryPractice {
+  id           String  @id @default(cuid())
+  lessonId     String  @unique
+  audioUrl     String
+  isTextLocked Boolean @default(true)
+
+  lesson Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  cues   MiniStoryCue[]
+}
+
+model MiniStoryCue {
+  id                        String  @id @default(cuid())
+  miniStoryPracticeId       String
+  orderIndex                Int
+  answerStartMs             Int
+  questionText              String?
+  questionTranslation       String?
+  expectedAnswer            String?
+  expectedAnswerTranslation String?
+
+  practice    MiniStoryPractice     @relation(fields: [miniStoryPracticeId], references: [id], onDelete: Cascade)
+  userAnswers UserMiniStoryAnswer[]
+
+  @@unique([miniStoryPracticeId, orderIndex])
+  @@index([miniStoryPracticeId])
+}
+
+model ShadowingItem {
+  id          String  @id @default(cuid())
+  lessonId    String
+  orderIndex  Int
+  text        String
+  translation String
+  audioUrl    String?
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([lessonId, orderIndex])
+  @@index([lessonId])
+}
+
+model UserLessonProgress {
+  id              String               @id @default(cuid())
+  userId          String
+  lessonId        String
+  lessonVersion   Int
+  status          LessonProgressStatus @default(NOT_STARTED)
+  currentActivity LessonActivityType?
+  completedAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+}
+
+model UserMiniStoryAnswer {
+  id            String                @id @default(cuid())
+  userId        String
+  lessonId      String
+  cueId         String
+  lessonVersion Int
+  recordingUrl  String
+  startedAtMs   Int
+  durationMs    Int?
+  speechToText  String?
+  status        MiniStoryAnswerStatus @default(RECORDED)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  cue    MiniStoryCue @relation(fields: [cueId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lessonId])
+  @@index([cueId])
+  @@index([lessonId])
+}
